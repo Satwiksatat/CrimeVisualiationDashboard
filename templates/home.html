@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>London Crime Dashboard</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    
+    <header>
+        <h2>Visualising Crime Patterns Across London Boroughs and Lockdown Phases</h2>
+        <br>
+        <div class="header-controls-left">
+            <label for="crime-type-select">Filter Crime Type:</label>
+            <select id="crime-type-select">
+                <option value="All">All Crime Types</option>
+                </select>
+            <button id="show-overall-trend-button">Overall Trend</button>
+            <button id="show-lockdown-chart-button">Lockdown Data</button>
+            <button id="show-data-info-button" class="info-button">Data Info</button>
+        </div>
+        <div class="header-controls-right">
+            <button id="dark-toggle">Toggle Dark Mode</button>
+        </div>
+    </header>
+
+    <main id="viz-wrapper"> 
+
+        <div id="map-section">
+            <h3>Borough Crime Distribution (2014–2024)</h3> <div id="map-container">
+                </div>
+        </div>
+
+        <div id="viz-container" style="display: none;"><svg id="chart-svg"></svg></div>
+        <div id="chart" style="display: none;"></div>
+        <div id="line-legend" style="display: none;"><div id="legend-container"></div></div>
+
+    </main>
+
+    <footer>
+        <p>London Crime Data Visualisation | Introduction to Data Visualisation Project - Satwik Satat, K24012309</p>
+    </footer>
+
+    <div class="tooltip" id="tooltip"></div>
+
+    <div id="popup-chart-container" class="popup-overlay">
+        <div class="popup-content">
+            <button class="popup-close" aria-label="Close popup">&times;</button>
+            <h4 id="popup-title">Borough Crime Trend</h4>
+            <div id="popup-chart" class="popup-chart-area"></div>
+            </div>
+    </div>
+
+    <div id="overall-trend-popup-container" class="popup-overlay">
+        <div class="popup-content">
+            <button class="popup-close" aria-label="Close popup">&times;</button>
+            <h4 id="overall-trend-popup-title">Overall Crime Trend (2014-2024)</h4>
+            <div id="overall-trend-popup-chart" class="popup-chart-area"></div>
+            <div id="overall-trend-popup-legend" class="popup-legend-container"></div>
+        </div>
+    </div>
+
+    <div id="lockdown-chart-popup-container" class="popup-overlay">
+        <div class="popup-content">
+            <button class="popup-close" aria-label="Close popup">&times;</button>
+            <h4 id="lockdown-chart-popup-title">Crime During Lockdown Phases</h4>
+            <div id="lockdown-chart-popup-chart" class="popup-chart-area"></div>
+            <div id="lockdown-chart-popup-legend" class="chart-legend"></div>
+        </div>
+    </div>
+
+    <div id="data-info-modal" class="modal-container">
+        <div class="modal-content">
+            <button class="modal-close" id="close-data-info-button">&times;</button> <h2>Data Processing and Sources</h2>
+
+            <div class="data-info-section">
+                <h3>Crime Data Preprocessing</h3>
+                <p> The crime data obtained from the mentioned sources originally ranged from 2010-2023 in one csv file and 2021-2025 in another excel sheet provided
+                    on the KEATs platform. The data was combined using the common borough names and verified using the crime count values so that no data is lost. The final
+                    result was a combined csv contained the data from 2010-2025, although in all analyses the 2025 data has been skipped as because the year is still not over, it caused
+                    a mislead in the trends for the overall 10 year period selected hereafter (2014 - 2024). The data fetched in real time by user interactivity (like dropdowns or borough selection)
+                    have been processed in the flask backend itself. All other data processing has been carried out outside of the Web App using the pandas library for a fast and seemless experience.
+                </p>
+            </div>
+
+            <div class="data-info-section">
+                <h3>Choropleth Map Data</h3>
+                <p>The map displays aggregated crime counts per borough based on the selected crime type ('All' by default). Processing involves:</p>
+                <ul>
+                    <li>GeoJSON data was prepared using the Shape file obtained from the source mentioned. The column containing the "Name" of the Borough was identified.
+                        the coordinates of the boundaries were converted to the required format for geoJSON and simplified. Finally the Name and the Geometry were stored in the geoJSON file.
+                    </li>
+                    <li>Crime Data was loaded using a CSV file. The data was cleaned to remove columns that were not of use and converted to CSV using Excel.
+                        Columns like "Borough" (to match with the geoJSON property name), "Offence Group" and "Count" were specifically loaded using pandas and data was filtered using the "Date" column. Similarly the population data was loaded
+                        using a CSV file. The population data was converted to long format (initially in wide format) by melting the data using pandas library. The Crime Data and Population Data were aggregated using
+                        the Borough name. The Count values were summed to calculate the total crime per Borough and crime counts per crime type for each borough were aggregated for the layered line chart for each Borough. For the
+                        line chart visual the date (in dd/mm/yyyy) was converted to (mm/yyyy) and data was filtered accordingly. The "groupby" method of pandas library was extremely helpful to perform
+                        these operations. Finally the data was served to the frontend using the "jsonify" return method of Flask.
+                    </li>
+                    <li>The map colour intensity was calculated using the count values of the crime type(s).</li>
+                </ul>
+            </div>
+
+            <div class="data-info-section">
+                <h3>Overall Crime Trend Data</h3>
+                <p>The overall trend chart shows counts for major crime categories over time (2014-2024) on a yearly basis. Processing involves:</p>
+                <ul>
+                    <li>The data was processed using the pandas library. The crime types were listed and the date was filtered to 2014-2024. </li>
+                    <li>The "to_datetime" method of pandas library was used to filter the dates in the required format.</li>
+                    <li>Aggregation of the count values was performed by using the "groupby" method of the pandas library respective to the columns Offence Group (sometimes
+                        referred to as Crime Type) and Year.
+                    </li>
+                    <li>The data was again passed using the "jsonify" return method of flask and D3 line generator was used to plot the graph.</li>
+                </ul>
+            </div>
+
+            <div class="data-info-section">
+                <h3>Lockdown Phase Comparison Data</h3>
+                <p>The radial bar chart compares crime counts across different lockdown phases for various crime types. Processing involves:</p>
+                <ul>
+                    <li>To start with processing the data the lockdown timeline for COVID was obtained and divided into phases according to the Month and Year.</li>
+                    <li>The original crime data was then filtered according to the month and year values which produced a smaller csv file similar to the original csv.
+                        The borough column was removed to accommodate the data in the chosen radial bar chart and for simplicity.
+                    </li>
+                    <li>The dates in the mm/yyyy format were mapped to string names for the phases of the lockdown and legibility.</li>
+                    <li>The data was then further reduced by aggregating the data by using "groupby" method of pandas library and the counts for different crime types were
+                        listed respective to the phase of the lockdown.
+                    </li>
+                    <li>The data was then parsed to json and served to the frontend.</li>
+                </ul>
+            </div>
+
+            <div class="data-info-section">
+                <h3>Borough Crime Trend Data</h3>
+                <p>The individual borough trend charts show monthly counts for a specific borough and crime type (or 'All'). Processing involves:</p>
+                <ul>
+                    <li>The original data file was directly used for this purpose. Depending on the selection of crime type (individual or All) the data was selected from the
+                        loaded pandas dataframe and the count operation was performed on a Monthly basis.
+                    </li>
+                    <li>Since the chart shows monthly data the date strings were parsed to JS Date objects and
+                        passed to the frontend along with the other data in a json format.
+                    </li>
+                    <li>Any invalid date or count entry was filtered out.</li>
+                    <li>The D3 time scale feature was used for the x axis and a linear scale was used for the y axis.</li>
+                    <li>A single line representing the trend for that specific borough/crime type combination was then drawn.</li>
+                </ul>
+            </div>
+
+            <div class="data-info-section">
+                <h3>Data Sources & Acknowledgements</h3> <ul>
+                    <li> <p><strong>Code Implementation & Techniques:</strong> Techniques were adapted from various examples, tutorials, and documentation, including:</p>
+                        <ul> <li>GeoPandas: <a href="https://geopandas.org/" target="_blank" rel="noopener noreferrer">Official Docs</a>, <a href="https://geog-510.gishub.org/book/geospatial/geopandas.html" target="_blank" rel="noopener noreferrer">Guide</a></li>
+                            <li>Pandas: <a href="https://pandas.pydata.org/docs/user_guide/10min.html" target="_blank" rel="noopener noreferrer">10min Guide</a>, <a href="https://www.datacamp.com/tutorial/pandas" target="_blank" rel="noopener noreferrer">DataCamp Tutorial</a></li>
+                            <li>D3 Line Chart: <a href="https://d3-graph-gallery.com/graph/line_several_group.html" target="_blank" rel="noopener noreferrer">D3 Graph Gallery</a>, <a href="https://gist.github.com/matthew-weber/5645518" target="_blank" rel="noopener noreferrer">Gist Example</a>, <a href="https://observablehq.com/@jurestabuc/animated-line-chart" target="_blank" rel="noopener noreferrer">Animation Ref</a></li>
+                            <li>D3 Radial Bar Chart: <a href="https://d3-graph-gallery.com/circular_barplot.html" target="_blank" rel="noopener noreferrer">D3 Graph Gallery</a></li>
+                            <li>Leaflet Choropleth: <a href="https://leafletjs.com/examples/choropleth/" target="_blank" rel="noopener noreferrer">Leaflet Docs</a></li>
+                            <li>CSS Styling: <a href="https://developer.mozilla.org/en-US/docs/Web/CSS" target="_blank" rel="noopener noreferrer">MDN Web Docs</a></li>
+                        </ul>
+                    </li>
+                     <li><strong>London Crime Data:</strong> <a href="https://data.london.gov.uk/dataset/recorded_crime_summary" target="_blank" rel="noopener noreferrer">GLA Recorded Crime Summary</a></li>
+                     <li><strong>London Borough Boundaries:</strong> <a href="https://data.london.gov.uk/dataset/statistical-gis-boundary-files-london" target="_blank" rel="noopener noreferrer">London Datastore (Statistical GIS Boundary Files)</a></li>
+                     <li><strong>Excel Mapping Template:</strong> <a href="https://data.london.gov.uk/dataset/excel-mapping-template-for-london-boroughs-and-wards" target="_blank" rel="noopener noreferrer">London Datastore</a></li>
+                     <li><strong>Lockdown Timeline Reference:</strong> <a href="https://www.instituteforgovernment.org.uk/data-visualisation/timeline-coronavirus-lockdowns" target="_blank" rel="noopener noreferrer">Institute for Government</a></li>
+                 </ul>
+            </div>
+
+        </div>
+    </div>
+
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+
+</body>
+</html>
